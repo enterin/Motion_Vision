@@ -1,9 +1,15 @@
 #pragma once
-#include "SharedData.h"
+#include "pch.h" // Should include SharedData.h and MFC headers
+#include "resource.h" // Include resource IDs
+
+// CDialogEx, CWnd, CDataExchange, CListCtrl, CEdit, CButton defined in MFC (via pch.h)
+// CameraConfig defined in SharedData.h (via pch.h)
 
 class CCameraSetupDlg : public CDialogEx {
 public:
     CCameraSetupDlg(CWnd* pParent = nullptr);
+
+    // Use the ID from resource.h
     enum { IDD = IDD_CAMERA_SETUP };
 
 protected:
@@ -15,9 +21,8 @@ protected:
 
 private:
     CListCtrl m_list;
-    CEdit     m_ip, m_port, m_th;
-    CButton   m_motion;
-    int       m_selected{ -1 };
+    // Removed CEdit, CButton members as they weren't in the cpp file usage shown
+    // int       m_selected{ -1 }; // Removed as not used in cpp
 
     void LoadFromIni(std::vector<CameraConfig>& out);
     void SaveToIni(const std::vector<CameraConfig>& in);
