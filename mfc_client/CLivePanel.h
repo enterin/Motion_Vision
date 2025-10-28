@@ -20,7 +20,6 @@ public:
     afx_msg void OnPaint();
 };
 
-
 // 플로팅 프레임 클래스 전방 선언
 class CFloatLiveFrame;
 
