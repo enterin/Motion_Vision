@@ -1,7 +1,19 @@
 #pragma once
-#include <afxmt.h>
-#include <opencv2/core.hpp>
-#include <nlohmann/json.hpp>
+#include <afxmt.h> // For CCriticalSection, CString, etc. (should be included via pch.h -> framework.h)
+// #include <opencv2/core.hpp> // REMOVE - Should be included via pch.h
+// #include <nlohmann/json.hpp> // REMOVE - Should be included via pch.h
+#include <vector> // Keep standard headers if needed specifically here, though likely in pch.h
+
+// Forward declare Pylon types if full definition not needed, otherwise ensure pch.h includes them
+namespace Pylon {
+    class CInstantCamera;
+}
+// Forward declare OpenCV types
+namespace cv {
+    class Mat;
+    class BackgroundSubtractorMOG2; // Forward declare if Ptr<> is used
+    template<typename _Tp> class Ptr; // Forward declare Ptr template
+}
 
 #define MAX_CAMERAS 4
 
@@ -47,14 +59,17 @@ struct GrabThreadParams {
     int nCameraIndex{};
     HWND hNotifyWnd{};
     CCriticalSection* pCommLock{};
-    Pylon::CInstantCamera* pCamera{};
-    void* pCommunicator{}; // CTcpCommunicator*
-    void* pDetector{};     // cv::BackgroundSubtractorMOG2*
+    Pylon::CInstantCamera* pCamera{}; // Pointer, so forward declaration is okay
+    void* pCommunicator{}; // CTcpCommunicator* (Forward declare or include CTcpCommunicator.h *after* this struct if needed by value)
+    // Use void* or forward declare cv::BackgroundSubtractorMOG2 if definition isn't required here
+    // cv::Ptr<cv::BackgroundSubtractorMOG2> needs the full definition usually.
+    // Let's assume void* is sufficient for the struct definition itself.
+    void* pDetector{};     // cv::BackgroundSubtractorMOG2* or cv::Ptr<cv::BackgroundSubtractorMOG2>*
     CameraConfig config;
 };
 
 // 불량 저장
 struct DefectData {
-    cv::Mat matImage;
+    cv::Mat matImage; // Needs full cv::Mat definition (via pch.h)
     InspectionResult result;
 };
