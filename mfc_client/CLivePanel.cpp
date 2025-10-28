@@ -20,6 +20,38 @@ namespace fs = std::filesystem;
 #include <direct.h>
 #endif
 
+// [1] CLivePanel에 대한 런타임 클래스 구현 (CLivePanel::GetRuntimeClass 해결)
+IMPLEMENT_DYNAMIC(CLivePanel, CDialogEx)
+
+// [2] CPreviewWnd에 대한 메시지 맵 구현 (CPreviewWnd::GetMessageMap 해결)
+// 
+// CPreviewWnd 클래스 정의가 CLivePanel.h에 있습니다.
+// CPreviewWnd는 CWnd를 상속하므로 CWnd를 부모로 지정합니다.
+BEGIN_MESSAGE_MAP(CPreviewWnd, CWnd)
+    ON_WM_ERASEBKGND()
+    ON_WM_PAINT()
+END_MESSAGE_MAP()
+
+// ===================================================================
+// CPreviewWnd 메시지 핸들러 구현 (새로 추가)
+// ===================================================================
+
+// OnEraseBkgnd: 배경을 지울 때 호출됩니다. 깜박임을 방지하기 위해 FALSE를 반환합니다.
+BOOL CPreviewWnd::OnEraseBkgnd(CDC* pDC)
+{
+    // CWnd::OnEraseBkgnd(pDC); // 기본 지우기 코드를 호출하지 않음
+    return FALSE; // FALSE를 반환하여 배경 지우기(깜빡임의 원인)를 건너뜁니다.
+}
+
+// OnPaint: 화면을 다시 그릴 때 호출됩니다. (이미지 표시)
+void CPreviewWnd::OnPaint()
+{
+    CPaintDC dc(this); // 그리기를 위한 Device Context (DC)
+
+    // TODO: 여기에 메시지 처리기 코드를 추가합니다.
+    // 현재는 링커 오류 해결을 위해 빈 함수로 정의를 제공합니다.
+    // 실제 라이브 카메라 이미지를 그리는 코드가 여기에 들어갈 것입니다.
+}
 // 플로팅 프레임 클래스 정의
 class CFloatLiveFrame : public CFrameWnd
 {
@@ -31,6 +63,7 @@ public:
     afx_msg void OnMove(int x, int y);
     afx_msg void OnSize(UINT nType, int cx, int cy);
 };
+
 
 BEGIN_MESSAGE_MAP(CFloatLiveFrame, CFrameWnd)
     ON_WM_CLOSE()
