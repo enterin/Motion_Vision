@@ -1,8 +1,11 @@
 ﻿#pragma once
 
+#include <afxres.h>
+
 #define IDR_MAINFRAME               128
 #define IDS_APP_TITLE               129
 #define IDS_HELLO                   130
+#define IDP_OLE_INIT_FAILED         100 // <<< 추가 (표준 MFC ID)
 
 // Icons
 #define IDI_MAINFRAME               200
@@ -21,6 +24,10 @@
 // Dialogs
 #define IDD_ABOUTBOX                100
 #define IDD_CAMERA_SETUP            101
+
+// CCameraSetupDlg 컨트롤 ID (Pylon 샘플에서 가져옴)
+#define IDC_BUTTON_SEARCH           1001 // <<< 추가
+#define IDC_LIST1                   1002 // <<< 추가
 
 #define ID_EXPORT_CSV               140
 

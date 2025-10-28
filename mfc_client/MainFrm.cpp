@@ -4,6 +4,8 @@
 #include "MainFrm.h"
 #include "CCameraSetupDlg.h"
 #include "resource.h"
+#include "FactoryVisionClientView.h"
+#include <algorithm>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -33,9 +35,7 @@ CMainFrame::CMainFrame() noexcept : m_pView(nullptr) {}
 
 CMainFrame::~CMainFrame()
 {
-    // 패널 상태 저장
     SaveConfigs();
-
     for (auto pBtn : m_vecCamButtons) { if (pBtn && pBtn->GetSafeHwnd()) pBtn->DestroyWindow(); delete pBtn; }
     m_vecCamButtons.clear();
 }
@@ -48,7 +48,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
     m_wndStatusBar.SetIndicators(indicators, sizeof(indicators) / sizeof(UINT));
     m_wndStatusBar.SetPaneText(0, _T("준비 완료"));
 
-    // View
     CCreateContext ctx; ctx.m_pCurrentDoc = nullptr; ctx.m_pCurrentFrame = this;
     ctx.m_pNewViewClass = RUNTIME_CLASS(CFactoryVisionClientView);
     m_pView = (CFactoryVisionClientView*)CreateView(&ctx, AFX_IDW_PANE_FIRST);
@@ -56,7 +55,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
     m_FontUI.CreatePointFont(120, _T("맑은 고딕"));
 
-    // 상단 버튼
     m_btnTogglePanel.Create(_T("📌 패널"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER, CRect(0, 0, 0, 0), this, ID_VIEW_TOGGLE_LIVEPANEL);
     m_btnTogglePanel.SetFont(&m_FontUI);
     m_btnManualCapture.Create(_T("📸 촬영"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER, CRect(0, 0, 0, 0), this, ID_MANUAL_CAPTURE_BTN);
@@ -64,14 +62,17 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
     m_btnSettings.Create(_T("⚙️ 설정"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_CENTER, CRect(0, 0, 0, 0), this, ID_SETTINGS_BTN);
     m_btnSettings.SetFont(&m_FontUI);
 
-    // 설정 로드 + 카메라 버튼 생성
     LoadConfigs();
     CreateDynamicButtonsLayout();
     UpdateCameraButtons();
 
-    // 라이브 패널 생성 및 상태 복원
-    m_LivePanel.CreateModeless(this);
-    // 도킹/플로팅 상태 복원
+    // --- 수정된 부분 (CreateModeless -> Create) ---
+    if (!m_LivePanel.Create(IDD_LIVE_PANEL, this)) {
+        TRACE0("Failed to create live panel\n");
+        return -1;
+    }
+    // --- 수정 끝 ---
+
     switch (m_LivePanel.m_state)
     {
     case CLivePanel::DockLeft:  m_LivePanel.DockLeftPane();  break;
@@ -81,9 +82,9 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
     }
     m_LivePanel.UpdateLayout();
 
-    // 카메라 연결
     if (m_pView && m_pView->GetSafeHwnd())
     {
+        m_LivePanel.BuildTabs(m_CamConfigs); // 탭 빌드 위치 변경
         for (const auto& cfg : m_CamConfigs) m_CameraManager.ConnectCamera(cfg, m_pView->GetSafeHwnd());
         m_pView->SetActiveCamera(0);
     }
@@ -122,11 +123,11 @@ void CMainFrame::UpdateLayout(int cx, int cy)
     const int btnW = 86, btnH = nTopBarH - 10, margin = 8;
 
     int dockW = (m_LivePanel.m_state == CLivePanel::Hidden) ? 0 : m_LivePanel.m_dockWidth;
-    dockW = max(160, min(dockW, max(160, cx * 3 / 5))); // 반응형: 과도한 폭 방지
+    dockW = std::max(160, std::min(dockW, std::max(160, cx * 3 / 5)));
 
     int panelX = 0;
-    if (m_LivePanel.m_state == CLivePanel::DockLeft)        panelX = 0;
-    else if (m_LivePanel.m_state == CLivePanel::DockRight)  panelX = cx - dockW;
+    if (m_LivePanel.m_state == CLivePanel::DockLeft)      panelX = 0;
+    else if (m_LivePanel.m_state == CLivePanel::DockRight) panelX = cx - dockW;
 
     if (m_LivePanel.m_state == CLivePanel::DockLeft || m_LivePanel.m_state == CLivePanel::DockRight)
     {
@@ -141,7 +142,6 @@ void CMainFrame::UpdateLayout(int cx, int cy)
         if (m_LivePanel.m_state == CLivePanel::Hidden && m_LivePanel.GetSafeHwnd()) m_LivePanel.ShowWindow(SW_HIDE);
     }
 
-    // 상단 버튼 (패널 영역 피해서)
     int x = (m_LivePanel.m_state == CLivePanel::DockLeft ? dockW : 0) + margin;
     m_btnTogglePanel.MoveWindow(x, 4, btnW, btnH); x += (btnW + margin);
     m_btnManualCapture.MoveWindow(x, 4, btnW, btnH); x += (btnW + margin);
@@ -150,12 +150,10 @@ void CMainFrame::UpdateLayout(int cx, int cy)
     for (auto* b : m_vecCamButtons)
         if (b && b->GetSafeHwnd()) { b->MoveWindow(x, 4, btnW, btnH); x += (btnW + 6); }
 
-    // 메인 뷰
     int viewX = (m_LivePanel.m_state == CLivePanel::DockLeft ? dockW : 0);
     int viewW = cx - viewX - (m_LivePanel.m_state == CLivePanel::DockRight ? dockW : 0);
     m_pView->MoveWindow(viewX, nTopBarH, viewW, cy - nTopBarH - nSBH);
 
-    // 상태바
     m_wndStatusBar.MoveWindow(0, cy - nSBH, cx, nSBH);
 }
 
@@ -221,11 +219,10 @@ void CMainFrame::OnSettingsClick()
         CreateDynamicButtonsLayout();
         UpdateCameraButtons();
         if (m_pView && m_pView->GetSafeHwnd()) {
+            m_LivePanel.BuildTabs(m_CamConfigs); // 탭 먼저 갱신
             for (const auto& cfg : m_CamConfigs) m_CameraManager.ConnectCamera(cfg, m_pView->GetSafeHwnd());
             m_pView->SetActiveCamera(0);
         }
-        // 라이브패널 탭 갱신
-        m_LivePanel.BuildTabs(m_CamConfigs);
         m_wndStatusBar.SetPaneText(0, _T("설정 적용 완료."));
     }
 }
@@ -291,7 +288,6 @@ LRESULT CMainFrame::OnCameraStatus(WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-// ===== 패널 제어 명령 =====
 void CMainFrame::OnTogglePanel() { m_LivePanel.TogglePane(); }
 void CMainFrame::OnDockLeft() { m_LivePanel.DockLeftPane(); }
 void CMainFrame::OnDockRight() { m_LivePanel.DockRightPane(); }
@@ -299,10 +295,18 @@ void CMainFrame::OnFloatPanel() { m_LivePanel.FloatPane(); }
 void CMainFrame::OnHidePanel() { m_LivePanel.HidePane(); }
 
 // ===== 설정 저장/로드 =====
-void CMainFrame::LoadConfigs()
+CString CMainFrame::GetIniPath() const
 {
-    m_CamConfigs.clear();
+    TCHAR path[MAX_PATH] = { 0 };
+    GetModuleFileName(NULL, path, MAX_PATH);
+    PathRemoveFileSpec(path);
+    PathAppend(path, _T("config.ini"));
+    return CString(path);
+}
 
+BOOL CMainFrame::LoadCameraConfigs(std::vector<CameraConfig>& out) // 헤더에도 선언 추가 필요
+{
+    out.clear();
     CString ini = GetIniPath();
     TCHAR b[256]{};
 
@@ -322,10 +326,34 @@ void CMainFrame::LoadConfigs()
         cfg.nPort = GetPrivateProfileInt(sec, _T("Port"), 9000 + i, ini);
         cfg.nMotionThreshold = GetPrivateProfileInt(sec, _T("Threshold"), 5000, ini);
         cfg.bMotionEnabled = GetPrivateProfileInt(sec, _T("MotionEnable"), 1, ini);
-        m_CamConfigs.push_back(cfg);
+        out.push_back(cfg);
     }
+    return TRUE; // 성공 여부 반환 (여기서는 항상 TRUE)
+}
 
-    // Panel 섹션
+BOOL CMainFrame::SaveCameraConfigs(const std::vector<CameraConfig>& cfgs) // 헤더에도 선언 추가 필요
+{
+    CString ini = GetIniPath();
+    for (const auto& cfg : cfgs)
+    {
+        CString sec; sec.Format(_T("CAM%d"), cfg.nIndex + 1);
+        WritePrivateProfileString(sec, _T("Serial"), cfg.sSerial, ini);
+        WritePrivateProfileString(sec, _T("IP"), cfg.sIp, ini);
+        CString s; s.Format(_T("%d"), cfg.nPort);            WritePrivateProfileString(sec, _T("Port"), s, ini);
+        s.Format(_T("%d"), cfg.nMotionThreshold);            WritePrivateProfileString(sec, _T("Threshold"), s, ini);
+        s.Format(_T("%d"), cfg.bMotionEnabled ? 1 : 0);      WritePrivateProfileString(sec, _T("MotionEnable"), s, ini);
+    }
+    return TRUE; // 성공 여부 반환 (여기서는 항상 TRUE)
+}
+
+
+void CMainFrame::LoadConfigs()
+{
+    LoadCameraConfigs(m_CamConfigs); // 분리된 함수 사용
+
+    CString ini = GetIniPath();
+    TCHAR b[256]{};
+
     CString dock = _T("Left");
     GetPrivateProfileString(_T("Panel"), _T("DockState"), _T("Left"), b, _countof(b), ini);
     dock = b;
@@ -354,20 +382,10 @@ void CMainFrame::LoadConfigs()
 
 void CMainFrame::SaveConfigs()
 {
+    SaveCameraConfigs(m_CamConfigs); // 분리된 함수 사용
+
     CString ini = GetIniPath();
 
-    // CAM 섹션 (직전 로드된 m_CamConfigs를 그대로 저장)
-    for (const auto& cfg : m_CamConfigs)
-    {
-        CString sec; sec.Format(_T("CAM%d"), cfg.nIndex + 1);
-        WritePrivateProfileString(sec, _T("Serial"), cfg.sSerial, ini);
-        WritePrivateProfileString(sec, _T("IP"), cfg.sIp, ini);
-        CString s; s.Format(_T("%d"), cfg.nPort);            WritePrivateProfileString(sec, _T("Port"), s, ini);
-        s.Format(_T("%d"), cfg.nMotionThreshold);            WritePrivateProfileString(sec, _T("Threshold"), s, ini);
-        s.Format(_T("%d"), cfg.bMotionEnabled ? 1 : 0);      WritePrivateProfileString(sec, _T("MotionEnable"), s, ini);
-    }
-
-    // Panel 섹션
     CString dock = _T("Left");
     switch (m_LivePanel.m_state)
     {
